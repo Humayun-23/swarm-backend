@@ -6,8 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-
+from sqlalchemy.orm import selectinload
 from app.database.session import get_db
+
 from app.database.models import User, Event, Participant
 from app.schemas.agent_schema import (
     AgentExecutionRequest,
@@ -363,33 +364,39 @@ async def generate_analytics(
     db: AsyncSession = Depends(get_db)
 ):
     """Generate analytics and insights"""
+
     # Verify event ownership
-    result = await db.execute(
-        select(Event).where(
-            Event.id == request.event_id,
-            Event.owner_id == current_user.id
+    stmt = (
+        select(Event)
+        .options(
+            selectinload(Event.participants),
+            selectinload(Event.schedules),
+            selectinload(Event.marketing_posts),
         )
+        .where(Event.id == request.event_id)
     )
+
+    result = await db.execute(stmt)
     event = result.scalar_one_or_none()
-    
+
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
-    
+
     # Get all event data
     participants = event.participants
     schedules = event.schedules
     marketing_posts = event.marketing_posts
-    
+
     # Create state
     state = create_initial_state(
         user_id=str(current_user.id),
         event_id=str(event.id),
         event_data={"name": event.name}
     )
-    
+
     state["participants"] = [
         {
             "email": p.email,
@@ -401,7 +408,9 @@ async def generate_analytics(
         }
         for p in participants
     ]
+
     state["participant_count"] = len(participants)
+
     state["scheduled_sessions"] = [
         {
             "session_name": s.session_name,
@@ -412,15 +421,16 @@ async def generate_analytics(
         }
         for s in schedules
     ]
+
     state["marketing_posts"] = [
         {"platform": m.platform, "content": m.content}
         for m in marketing_posts
     ]
-    
+
     # Run analytics agent
     try:
         result_state = await analytics_agent.execute(state)
-        
+
         return AgentExecutionResponse(
             workflow_id=UUID(result_state["workflow_id"]),
             status="completed",
@@ -431,7 +441,7 @@ async def generate_analytics(
                 "recommendations": result_state.get("recommendations", [])
             }
         )
-        
+
     except Exception as e:
         logger.error(f"Analytics generation failed: {e}")
         raise HTTPException(

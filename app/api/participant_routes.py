@@ -55,7 +55,7 @@ async def create_participant(
         is_speaker=participant_data.is_speaker,
         is_sponsor=participant_data.is_sponsor,
         tags=participant_data.tags or [],
-        metadata=participant_data.metadata or {}
+        participant_metadata=participant_data.participant_metadata or {}
     )
     
     db.add(new_participant)
@@ -74,6 +74,7 @@ async def list_event_participants(
     db: AsyncSession = Depends(get_db)
 ):
     """List all participants for an event"""
+
     # Verify event ownership
     result = await db.execute(
         select(Event).where(
@@ -82,14 +83,21 @@ async def list_event_participants(
         )
     )
     event = result.scalar_one_or_none()
-    
+
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
-    
-    return event.participants
+
+    # Explicit query for participants
+    result = await db.execute(
+        select(Participant).where(Participant.event_id == event_id)
+    )
+
+    participants = result.scalars().all()
+
+    return participants
 
 
 @router.post("/upload-csv", response_model=CSVUploadResponse)
