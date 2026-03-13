@@ -60,7 +60,7 @@ async def create_event(
         location=event_data.location,
         venue=event_data.venue,
         max_participants=event_data.max_participants,
-        metadata=event_data.metadata or {}
+        metadata=event_data.event_metadata or {}
     )
     
     db.add(new_event)

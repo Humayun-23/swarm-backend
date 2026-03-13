@@ -73,8 +73,8 @@ class Event(Base):
     theme = Column(String(255))
     target_audience = Column(Text)
     
-    start_date = Column(DateTime, nullable=False)
-    end_date = Column(DateTime, nullable=False)
+    start_date = Column(DateTime(timezone=True), nullable=False)
+    end_date = Column(DateTime(timezone=True), nullable=False)
     location = Column(String(500))
     venue = Column(String(255))
     

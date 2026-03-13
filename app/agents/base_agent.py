@@ -58,6 +58,9 @@ class BaseAgent(ABC):
         """
         return ChatPromptTemplate.from_template(template)
     
+    
+
+
     async def _invoke_llm(
         self,
         prompt_template: str,
@@ -65,24 +68,34 @@ class BaseAgent(ABC):
     ) -> str:
         """
         Invoke LLM with prompt
-        
+
         Args:
             prompt_template: Prompt template string
             variables: Template variables
-            
+
         Returns:
             LLM response
         """
         try:
+            from langchain_core.messages import HumanMessage
+
+            # If no variables, bypass ChatPromptTemplate to avoid
+            # curly brace parsing issues with JSON in prompts
+            if not variables:
+                response = await self.llm.ainvoke([HumanMessage(content=prompt_template)])
+                return response.content
+
             prompt = ChatPromptTemplate.from_template(prompt_template)
             chain = prompt | self.llm
-            
             response = await chain.ainvoke(variables)
             return response.content
-            
+
         except Exception as e:
             logger.error(f"{self.agent_name} LLM invocation error: {e}")
             raise
+
+
+
     
     def _update_state(
         self,
