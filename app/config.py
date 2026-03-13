@@ -32,10 +32,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # OpenAI / LLM
-    OPENAI_API_KEY: str
-    OPENAI_MODEL: str = "gpt-4-turbo-preview"
-    OPENAI_TEMPERATURE: float = 0.7
-    OPENAI_MAX_TOKENS: int = 2000
+    GOOGLE_API_KEY: str
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_TEMPERATURE: float = 0.7
+    GEMINI_MAX_TOKENS: int = 2000
     
     # Vector Store
     VECTOR_STORE_TYPE: str = "chroma"

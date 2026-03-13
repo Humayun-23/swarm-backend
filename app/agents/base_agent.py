@@ -4,12 +4,14 @@ Base Agent Class
 from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
 from datetime import datetime
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
 
 from app.config import settings
 from app.utils.logger import logger
 from app.orchestration.state_schema import AgentState
+
+
 
 
 class BaseAgent(ABC):
@@ -23,14 +25,15 @@ class BaseAgent(ABC):
             agent_name: Name of the agent
         """
         self.agent_name = agent_name
-        self.llm = ChatOpenAI(
-            model=settings.OPENAI_MODEL,
-            temperature=settings.OPENAI_TEMPERATURE,
-            max_tokens=settings.OPENAI_MAX_TOKENS,
-            openai_api_key=settings.OPENAI_API_KEY
+        self.llm = ChatGoogleGenerativeAI(
+            model=settings.GEMINI_MODEL,
+            google_api_key=settings.GOOGLE_API_KEY,
+            temperature=settings.GEMINI_TEMPERATURE,
+            max_output_tokens=settings.GEMINI_MAX_TOKENS,
+            convert_system_message_to_human=True
         )
         
-        logger.info(f"Initialized {agent_name}")
+        logger.info(f"Initialized {agent_name} with Gemini {settings.GEMINI_MODEL}")
     
     @abstractmethod
     async def execute(self, state: AgentState) -> AgentState:
