@@ -31,6 +31,17 @@ class MarketingWorkflowRequest(BaseModel):
     platforms: Optional[List[str]] = ["twitter", "linkedin", "facebook"]
 
 
+class EmailSendRequest(BaseModel):
+    event_id: UUID
+    emails: List[Dict[str, Any]]
+
+
+class EmailVariationSelectRequest(BaseModel):
+    """Request to regenerate emails with selected template variations"""
+    event_id: UUID
+    selected_variations: Dict[str, int]  # {segment_key: variation_index}
+
+
 class EmailWorkflowRequest(BaseModel):
     """Email workflow request schema"""
     event_id: UUID

@@ -129,35 +129,45 @@ class CommunicationAgent(BaseAgent):
         self,
         state: AgentState,
         segments: Dict[str, List[Dict[str, Any]]]
-    ) -> Dict[str, str]:
-        """Generate personalized email templates for each segment"""
+    ) -> Dict[str, Any]:
+        """Generate multiple email template variations for each segment"""
         
         context = self._get_context(state)
         templates = {}
+        num_variations = 3  # Generate 3 variations per segment
         
-        # Generate template for general attendees
+        # Generate variations for general attendees
         if segments.get("general_attendees"):
-            templates["general_welcome"] = await self._generate_template(
-                context,
-                "general attendee",
-                "welcome and event information"
-            )
+            templates["general_welcome"] = []
+            for i in range(num_variations):
+                variation = await self._generate_template(
+                    context,
+                    "general attendee",
+                    f"welcome and event information (variation {i+1}: tone: {'professional' if i==0 else 'friendly' if i==1 else 'casual'})"
+                )
+                templates["general_welcome"].append(variation)
         
-        # Generate template for speakers
+        # Generate variations for speakers
         if segments.get("speakers"):
-            templates["speaker_briefing"] = await self._generate_template(
-                context,
-                "speaker",
-                "speaker briefing and logistics"
-            )
+            templates["speaker_briefing"] = []
+            for i in range(num_variations):
+                variation = await self._generate_template(
+                    context,
+                    "speaker",
+                    f"speaker briefing and logistics (variation {i+1}: tone: {'formal' if i==0 else 'warm' if i==1 else 'brief'})"
+                )
+                templates["speaker_briefing"].append(variation)
         
-        # Generate template for sponsors
+        # Generate variations for sponsors
         if segments.get("sponsors"):
-            templates["sponsor_welcome"] = await self._generate_template(
-                context,
-                "sponsor",
-                "sponsorship details and benefits"
-            )
+            templates["sponsor_welcome"] = []
+            for i in range(num_variations):
+                variation = await self._generate_template(
+                    context,
+                    "sponsor",
+                    f"sponsorship details and benefits (variation {i+1}: tone: {'corporate' if i==0 else 'appreciative' if i==1 else 'partnership'})"
+                )
+                templates["sponsor_welcome"].append(variation)
         
         return templates
     
@@ -190,12 +200,13 @@ Generate the email body (plain text format):
     def _prepare_email_messages(
         self,
         participants: List[Dict[str, Any]],
-        templates: Dict[str, str],
+        templates: Dict[str, Any],
         state: AgentState
     ) -> List[Dict[str, Any]]:
         """Prepare email messages with personalization"""
         
         messages = []
+        selected_variations = state.get("selected_variations", {})
         
         for participant in participants:
             # Determine which template to use
@@ -206,10 +217,20 @@ Generate the email body (plain text format):
             else:
                 template_key = "general_welcome"
             
-            template = templates.get(
+            template_or_list = templates.get(
                 template_key,
                 f"Welcome to {state.get('event_name')}! We're excited to have you join us."
             )
+            
+            # If template is a list of variations, pick the selected variation or first
+            if isinstance(template_or_list, list):
+                # Get selected variation index for this segment, default to 0
+                variation_index = selected_variations.get(template_key, 0)
+                # Ensure index is within bounds
+                variation_index = min(variation_index, len(template_or_list) - 1)
+                template = template_or_list[variation_index]
+            else:
+                template = template_or_list
             
             # Personalize template
             personalized_body = email_service.personalize_email(

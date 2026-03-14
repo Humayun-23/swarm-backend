@@ -134,15 +134,33 @@ async def upload_participants_csv(
     created_participants = []
     for p_data in participants_data:
         try:
-            participant = Participant(
-                event_id=event_id,
-                **p_data
+            # Check for existing participant to prevent duplicates
+            email = p_data.get("email")
+            existing_query = select(Participant).where(
+                Participant.event_id == event_id,
+                Participant.email == email
             )
-            db.add(participant)
-            created_participants.append(participant)
+            existing_result = await db.execute(existing_query)
+            existing_participant = existing_result.scalar_one_or_none()
+            
+            if existing_participant:
+                # Update existing participant
+                for key, value in p_data.items():
+                    setattr(existing_participant, key, value)
+                created_participants.append(existing_participant)
+            else:
+                # Create new participant
+                participant = Participant(
+                    event_id=event_id,
+                    **p_data
+                )
+                db.add(participant)
+                created_participants.append(participant)
         except Exception as e:
-            errors.append(f"Failed to create participant {p_data.get('email')}: {str(e)}")
+            logger.error(f"Error creating participant from CSV row: {e}")
+            errors.append(str(e))
     
+    # Commit all changes
     await db.commit()
     
     # Refresh all created participants
