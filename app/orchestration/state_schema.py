@@ -46,6 +46,7 @@ class AgentState(TypedDict, total=False):
     emails_sent: List[Dict[str, Any]]
     email_templates: Dict[str, str]
     email_segments: Dict[str, List[Dict[str, Any]]]
+    selected_variations: Dict[str, int]
     
     # Analytics data
     analytics: Dict[str, Any]
@@ -138,10 +139,10 @@ def create_initial_state(
         end_date=event_data.get("end_date"),
         
         # Initialize empty collections
-        participants=[],
-        participant_count=0,
-        speakers=[],
-        sponsors=[],
+        participants=event_data.get("participants", []),
+        participant_count=len(event_data.get("participants", [])),
+        speakers=event_data.get("speakers", []),
+        sponsors=event_data.get("sponsors", []),
         
         schedule={},
         scheduled_sessions=[],
@@ -155,6 +156,7 @@ def create_initial_state(
         emails_sent=[],
         email_templates={},
         email_segments={},
+        selected_variations=event_data.get("selected_variations", {}),
         
         analytics={},
         insights=[],
