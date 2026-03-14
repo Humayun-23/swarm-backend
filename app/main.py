@@ -59,10 +59,10 @@ app.add_middleware(
 
 
 # Include routers
-app.include_router(auth_routes.router)
-app.include_router(event_routes.router)
-app.include_router(participant_routes.router)
-app.include_router(agent_routes.router)
+app.include_router(auth_routes.router, prefix="/api")
+app.include_router(event_routes.router, prefix="/api")
+app.include_router(participant_routes.router, prefix="/api")
+app.include_router(agent_routes.router, prefix="/api")
 
 
 @app.get("/")

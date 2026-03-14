@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "production"
     
     # Server
-    HOST: str = "0.0.0.0"
+    HOST: str = "localhost"
     PORT: int = 8000
     
     # Database
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
     
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:5173"]
     
     # Logging
     LOG_LEVEL: str = "INFO"
