@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str
     GEMINI_MODEL: str = "gemini-2.5-flash"
     GEMINI_TEMPERATURE: float = 0.7
-    GEMINI_MAX_TOKENS: int = 2000
+    GEMINI_MAX_TOKENS: int = 20
     
     # Vector Store
     VECTOR_STORE_TYPE: str = "chroma"

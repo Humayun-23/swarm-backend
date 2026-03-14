@@ -46,13 +46,13 @@ async def run_full_workflow(
 ):
     """
     Run complete multi-agent workflow
-    
+
     Args:
         request: Workflow execution request
         background_tasks: FastAPI background tasks
         current_user: Current authenticated user
         db: Database session
-        
+
     Returns:
         Workflow execution response
     """
@@ -64,20 +64,20 @@ async def run_full_workflow(
         )
     )
     event = result.scalar_one_or_none()
-    
+
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
-    
+
     # Get participants
     participants_result = await db.execute(
         select(Participant).where(Participant.event_id == request.event_id)
     )
     participants = participants_result.scalars().all()
-    
-    # Prepare event data for workflow
+
+    # Prepare event data for workflow (no participants here)
     event_data = {
         "name": event.name,
         "description": event.description,
@@ -88,21 +88,30 @@ async def run_full_workflow(
         "end_date": event.end_date,
         "location": event.location,
         "venue": event.venue,
-        "metadata": event.event_metadata,
-        "participants": [
-            {
-                "email": p.email,
-                "full_name": p.full_name,
-                "organization": p.organization,
-                "role": p.role,
-                "is_speaker": p.is_speaker,
-                "is_sponsor": p.is_sponsor
-            }
-            for p in participants
-        ],
-        "participant_count": len(participants)
+        "event_metadata": event.event_metadata,
     }
-    
+
+    # Create initial state
+    state = create_initial_state(
+        user_id=str(current_user.id),
+        event_id=str(event.id),
+        event_data=event_data
+    )
+
+    # ✅ Fix: Set participants directly on state from the DB query result
+    state["participants"] = [
+        {
+            "email": p.email,
+            "full_name": p.full_name,
+            "organization": p.organization,
+            "role": p.role,
+            "is_speaker": p.is_speaker,
+            "is_sponsor": p.is_sponsor
+        }
+        for p in participants
+    ]
+    state["participant_count"] = len(participants)
+
     # Run workflow
     try:
         workflow_result = await event_workflow.run_workflow(
@@ -111,7 +120,7 @@ async def run_full_workflow(
             event_data=event_data,
             config=request.parameters
         )
-        
+
         # Save agent logs in background
         if workflow_result["status"] == "completed":
             background_tasks.add_task(
@@ -121,7 +130,7 @@ async def run_full_workflow(
                 workflow_result["workflow_id"],
                 workflow_result["state"]
             )
-            
+
             # Save generated content to database in background
             background_tasks.add_task(
                 save_workflow_results,
@@ -129,9 +138,9 @@ async def run_full_workflow(
                 str(event.id),
                 workflow_result["state"]
             )
-        
+
         logger.info(f"Workflow {workflow_result['workflow_id']} completed for event {event.id}")
-        
+
         return AgentExecutionResponse(
             workflow_id=UUID(workflow_result["workflow_id"]),
             status=workflow_result["status"],
@@ -143,7 +152,7 @@ async def run_full_workflow(
                 "insights": workflow_result["state"].get("insights", [])
             }
         )
-        
+
     except Exception as e:
         logger.error(f"Workflow execution failed: {e}")
         raise HTTPException(
@@ -167,13 +176,13 @@ async def generate_marketing_content(
         )
     )
     event = result.scalar_one_or_none()
-    
+
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
-    
+
     # Create state for content agent
     state = create_initial_state(
         user_id=str(current_user.id),
@@ -186,11 +195,11 @@ async def generate_marketing_content(
             "target_audience": event.target_audience
         }
     )
-    
+
     # Run content agent
     try:
         result_state = await content_agent.execute(state)
-        
+
         return AgentExecutionResponse(
             workflow_id=UUID(result_state["workflow_id"]),
             status="completed",
@@ -200,7 +209,7 @@ async def generate_marketing_content(
                 "marketing_plan": result_state.get("marketing_plan", {})
             }
         )
-        
+
     except Exception as e:
         logger.error(f"Marketing content generation failed: {e}")
         raise HTTPException(
@@ -224,24 +233,24 @@ async def prepare_emails(
         )
     )
     event = result.scalar_one_or_none()
-    
+
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
-    
+
     # Get participants
     participants_query = select(Participant).where(Participant.event_id == request.event_id)
-    
+
     if request.participant_ids:
         participants_query = participants_query.where(
             Participant.id.in_(request.participant_ids)
         )
-    
+
     participants_result = await db.execute(participants_query)
     participants = participants_result.scalars().all()
-    
+
     # Create state
     state = create_initial_state(
         user_id=str(current_user.id),
@@ -249,37 +258,40 @@ async def prepare_emails(
         event_data={
             "name": event.name,
             "description": event.description,
-            "participants": [
-                {
-                    "email": p.email,
-                    "full_name": p.full_name,
-                    "organization": p.organization,
-                    "role": p.role,
-                    "is_speaker": p.is_speaker,
-                    "is_sponsor": p.is_sponsor
-                }
-                for p in participants
-            ]
         }
     )
-    
+
+    # ✅ Fix: Set participants directly on state from the DB query result
+    state["participants"] = [
+        {
+            "email": p.email,
+            "full_name": p.full_name,
+            "organization": p.organization,
+            "role": p.role,
+            "is_speaker": p.is_speaker,
+            "is_sponsor": p.is_sponsor
+        }
+        for p in participants
+    ]
+    state["participant_count"] = len(participants)
+
     # Run email agent
     try:
         result_state = await communication_agent.execute(state)
-        
+
         # Optionally send emails immediately
         if request.send_immediately:
             send_stats = await communication_agent.send_emails(result_state, db)
         else:
             send_stats = {"prepared": len(result_state.get("emails_sent", []))}
-        
+
         return AgentExecutionResponse(
             workflow_id=UUID(result_state["workflow_id"]),
             status="completed",
             message="Emails prepared successfully",
             results=send_stats
         )
-        
+
     except Exception as e:
         logger.error(f"Email preparation failed: {e}")
         raise HTTPException(
@@ -303,13 +315,13 @@ async def generate_schedule(
         )
     )
     event = result.scalar_one_or_none()
-    
+
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
-    
+
     # Create state
     state = create_initial_state(
         user_id=str(current_user.id),
@@ -321,8 +333,8 @@ async def generate_schedule(
             "venue": event.venue
         }
     )
-    
-    # Get speakers
+
+    # Get speakers and set directly on state
     speakers_result = await db.execute(
         select(Participant).where(
             Participant.event_id == request.event_id,
@@ -334,11 +346,11 @@ async def generate_schedule(
         {"full_name": s.full_name, "organization": s.organization}
         for s in speakers
     ]
-    
+
     # Run scheduler agent
     try:
         result_state = await scheduler_agent.execute(state)
-        
+
         return AgentExecutionResponse(
             workflow_id=UUID(result_state["workflow_id"]),
             status="completed",
@@ -348,7 +360,7 @@ async def generate_schedule(
                 "conflicts": result_state.get("schedule_conflicts", [])
             }
         )
-        
+
     except Exception as e:
         logger.error(f"Schedule generation failed: {e}")
         raise HTTPException(
@@ -365,7 +377,7 @@ async def generate_analytics(
 ):
     """Generate analytics and insights"""
 
-    # Verify event ownership
+    # Verify event ownership and eager-load related data
     stmt = (
         select(Event)
         .options(
@@ -397,6 +409,7 @@ async def generate_analytics(
         event_data={"name": event.name}
     )
 
+    # ✅ Set all data directly on state
     state["participants"] = [
         {
             "email": p.email,
@@ -408,7 +421,6 @@ async def generate_analytics(
         }
         for p in participants
     ]
-
     state["participant_count"] = len(participants)
 
     state["scheduled_sessions"] = [
@@ -457,7 +469,7 @@ async def save_workflow_results(
 ):
     """Background task to save workflow results to database"""
     from app.database.models import Schedule, MarketingPost
-    
+
     try:
         # Save schedules
         for session in state.get("scheduled_sessions", []):
@@ -473,7 +485,7 @@ async def save_workflow_results(
                 speaker=session.get("speaker")
             )
             db.add(schedule)
-        
+
         # Save marketing posts
         for post in state.get("marketing_posts", []):
             marketing_post = MarketingPost(
@@ -484,10 +496,10 @@ async def save_workflow_results(
                 hashtags=post.get("hashtags", [])
             )
             db.add(marketing_post)
-        
+
         await db.commit()
         logger.info(f"Workflow results saved for event {event_id}")
-        
+
     except Exception as e:
         logger.error(f"Failed to save workflow results: {e}")
         await db.rollback()
